@@ -1,30 +1,76 @@
 import React, { useState } from 'react';
 import { MapPin, Edit3, Save, X } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
-import { mockEvent, mockMiniEvents } from '../../data/mockData';
+import { mockAPI } from '../../data/mockDatabase';
 
 export const LocationView: React.FC = () => {
   const { user } = useAuth();
+  const [event, setEvent] = useState<any>(null);
+  const [miniEvents, setMiniEvents] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
   const [isEditing, setIsEditing] = useState(false);
   const [eventData, setEventData] = useState({
-    venue: mockEvent.venue,
-    lat: mockEvent.lat,
-    long: mockEvent.long
+    venue: '',
+    lat: 0,
+    long: 0
   });
 
-  const handleSave = () => {
-    console.log('Saving location:', eventData);
+  React.useEffect(() => {
+    const loadData = async () => {
+      try {
+        const [eventData, miniEventsData] = await Promise.all([
+          mockAPI.getEvent(),
+          mockAPI.getAllMiniEvents()
+        ]);
+        setEvent(eventData);
+        setMiniEvents(miniEventsData);
+        if (eventData) {
+          setEventData({
+            venue: eventData.venue,
+            lat: eventData.lat,
+            long: eventData.long
+          });
+        }
+      } catch (error) {
+        console.error('Error loading data:', error);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    loadData();
+  }, []);
+
+  const handleSave = async () => {
+    try {
+      const updatedEvent = await mockAPI.updateEvent(eventData);
+      if (updatedEvent) {
+        setEvent(updatedEvent);
+      }
+    } catch (error) {
+      console.error('Error saving location:', error);
+    }
     setIsEditing(false);
   };
 
   const handleCancel = () => {
-    setEventData({
-      venue: mockEvent.venue,
-      lat: mockEvent.lat,
-      long: mockEvent.long
-    });
+    if (event) {
+      setEventData({
+        venue: event.venue,
+        lat: event.lat,
+        long: event.long
+      });
+    }
     setIsEditing(false);
   };
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center min-h-64">
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-indigo-600"></div>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6">
@@ -137,7 +183,7 @@ export const LocationView: React.FC = () => {
         <div>
           <h3 className="text-lg font-semibold text-gray-900 mb-4">Additional Locations</h3>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            {mockMiniEvents.map((event) => (
+            {miniEvents.map((event) => (
               <div key={event._id} className="bg-gray-50 rounded-lg p-4 border border-gray-200">
                 <div className="flex items-center space-x-3 mb-2">
                   <div className="w-8 h-8 bg-purple-100 rounded-full flex items-center justify-center">

@@ -1,12 +1,14 @@
 import React, { useState } from 'react';
 import { MapPin, Plus, Edit3, Trash2, Info, Gamepad2, Users } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
-import { mockMiniEvents, mockEvent } from '../../data/mockData';
+import { mockAPI } from '../../data/mockDatabase';
 import { MiniEvent } from '../../types';
 
 export const EventsView: React.FC = () => {
   const { user } = useAuth();
-  const [events, setEvents] = useState(mockMiniEvents);
+  const [events, setEvents] = useState<MiniEvent[]>([]);
+  const [event, setEvent] = useState<any>(null);
+  const [loading, setLoading] = useState(true);
   const [isEditing, setIsEditing] = useState(false);
   const [editingEvent, setEditingEvent] = useState<MiniEvent | null>(null);
   const [formData, setFormData] = useState({
@@ -18,6 +20,25 @@ export const EventsView: React.FC = () => {
     gameOptions: ''
   });
   const [participation, setParticipation] = useState<{[key: string]: { status: string, game?: string }}>({});
+
+  React.useEffect(() => {
+    const loadData = async () => {
+      try {
+        const [eventsData, eventData] = await Promise.all([
+          mockAPI.getAllMiniEvents(),
+          mockAPI.getEvent()
+        ]);
+        setEvents(eventsData);
+        setEvent(eventData);
+      } catch (error) {
+        console.error('Error loading data:', error);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    loadData();
+  }, []);
 
   const handleEdit = (event: MiniEvent) => {
     setEditingEvent(event);
@@ -45,32 +66,50 @@ export const EventsView: React.FC = () => {
     setIsEditing(true);
   };
 
-  const handleSave = (e: React.FormEvent) => {
+  const handleSave = async (e: React.FormEvent) => {
     e.preventDefault();
-    const newEvent: MiniEvent = {
-      _id: editingEvent?._id || Date.now().toString(),
-      title: formData.title,
-      description: formData.description,
-      lat: formData.lat,
-      long: formData.long,
-      type: formData.type,
-      gameOptions: formData.type === 'game' ? formData.gameOptions : undefined
-    };
-
-    if (editingEvent) {
-      setEvents(prev => prev.map(event => 
-        event._id === editingEvent._id ? newEvent : event
-      ));
-    } else {
-      setEvents(prev => [...prev, newEvent]);
+    
+    try {
+      if (editingEvent) {
+        const updatedEvent = await mockAPI.updateMiniEvent(editingEvent._id, {
+          title: formData.title,
+          description: formData.description,
+          lat: formData.lat,
+          long: formData.long,
+          type: formData.type,
+          gameOptions: formData.type === 'game' ? formData.gameOptions : undefined
+        });
+        if (updatedEvent) {
+          setEvents(prev => prev.map(event => 
+            event._id === editingEvent._id ? updatedEvent : event
+          ));
+        }
+      } else {
+        const newEvent = await mockAPI.createMiniEvent({
+          title: formData.title,
+          description: formData.description,
+          lat: formData.lat,
+          long: formData.long,
+          type: formData.type,
+          gameOptions: formData.type === 'game' ? formData.gameOptions : undefined
+        });
+        setEvents(prev => [...prev, newEvent]);
+      }
+    } catch (error) {
+      console.error('Error saving mini event:', error);
     }
     
     setIsEditing(false);
     setEditingEvent(null);
   };
 
-  const handleDelete = (id: string) => {
-    setEvents(prev => prev.filter(event => event._id !== id));
+  const handleDelete = async (id: string) => {
+    try {
+      await mockAPI.deleteMiniEvent(id);
+      setEvents(prev => prev.filter(event => event._id !== id));
+    } catch (error) {
+      console.error('Error deleting mini event:', error);
+    }
   };
 
   const handleParticipation = (eventId: string, status: 'Interested' | 'Not Interested', game?: string) => {
@@ -80,7 +119,15 @@ export const EventsView: React.FC = () => {
     }));
   };
 
-  if (!mockEvent.showEvents && !user?.isAdmin) {
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center min-h-64">
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-indigo-600"></div>
+      </div>
+    );
+  }
+
+  if (!event?.showEvents && !user?.isAdmin) {
     return (
       <div className="min-h-96 flex items-center justify-center">
         <div className="text-center">

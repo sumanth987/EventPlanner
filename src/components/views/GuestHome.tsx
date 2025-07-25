@@ -1,12 +1,14 @@
 import React, { useState } from 'react';
 import { CheckCircle, XCircle, Calendar, MapPin, Users, Plane } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
-import { mockEvent } from '../../data/mockData';
+import { mockAPI } from '../../data/mockDatabase';
 import { FloatingActionButton } from '../common/FloatingActionButton';
 import { BottomSheet } from '../common/BottomSheet';
 
 export const GuestHome: React.FC = () => {
   const { user, updateUser } = useAuth();
+  const [event, setEvent] = useState<any>(null);
+  const [loading, setLoading] = useState(true);
   const [showRSVPForm, setShowRSVPForm] = useState(false);
   const [showBottomSheet, setShowBottomSheet] = useState(false);
   const [formData, setFormData] = useState({
@@ -15,6 +17,21 @@ export const GuestHome: React.FC = () => {
     travelMode: '',
     travelNo: ''
   });
+
+  React.useEffect(() => {
+    const loadEvent = async () => {
+      try {
+        const eventData = await mockAPI.getEvent();
+        setEvent(eventData);
+      } catch (error) {
+        console.error('Error loading event:', error);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    loadEvent();
+  }, []);
 
   const handleRSVP = (response: 'Accept' | 'Reject') => {
     updateUser({ rsvp: response });
@@ -35,13 +52,31 @@ export const GuestHome: React.FC = () => {
     setShowBottomSheet(false);
   };
 
-  const noteTypeIcons = {
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center min-h-64">
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-indigo-600"></div>
+      </div>
+    );
+  }
+
+  if (!event) {
+    return (
+      <div className="flex items-center justify-center min-h-64">
+        <div className="text-center">
+          <p className="text-gray-600">Event information not available</p>
+        </div>
+      </div>
+    );
+  }
+
+  const noteTypeIcons: { [key: string]: any } = {
     'Invitation': CheckCircle,
     'Welcome': CheckCircle,
     'Thank You': CheckCircle
   };
 
-  const NoteIcon = noteTypeIcons[mockEvent.noteType];
+  const NoteIcon = noteTypeIcons[event.noteType] || CheckCircle;
 
   return (
     <div className="space-y-6">
@@ -49,21 +84,21 @@ export const GuestHome: React.FC = () => {
       <div className="bg-gradient-to-r from-indigo-500 to-purple-600 rounded-xl shadow-lg text-white p-6 md:p-8 animate-fade-in">
         <div className="flex items-center space-x-3 mb-4">
           <NoteIcon className="w-8 h-8" />
-          <h1 className="text-2xl font-bold">{mockEvent.noteType}</h1>
+          <h1 className="text-2xl font-bold">{event.noteType}</h1>
         </div>
         <p className="text-indigo-100 leading-relaxed text-lg">
-          {mockEvent.noteContent}
+          {event.noteContent}
         </p>
       </div>
 
       {/* Event Details */}
       <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6 animate-slide-up">
-        <h2 className="text-xl font-bold text-gray-900 mb-4">{mockEvent.eventTitle}</h2>
-        <p className="text-gray-600 mb-6">{mockEvent.eventDescription}</p>
+        <h2 className="text-xl font-bold text-gray-900 mb-4">{event.eventTitle}</h2>
+        <p className="text-gray-600 mb-6">{event.eventDescription}</p>
         
         <div className="flex items-center space-x-2 text-gray-700">
           <MapPin className="w-5 h-5 text-indigo-600" />
-          <span>{mockEvent.venue}</span>
+          <span>{event.venue}</span>
         </div>
       </div>
 

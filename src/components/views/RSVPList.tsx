@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { User, Mail, Phone, CheckCircle, XCircle, Clock, Shield, Users } from 'lucide-react';
-import { apiService } from '../../services/api';
+import { mockAPI } from '../../data/mockDatabase';
 import { User as UserType } from '../../types';
 
 export const RSVPList: React.FC = () => {
@@ -10,7 +10,7 @@ export const RSVPList: React.FC = () => {
   React.useEffect(() => {
     const loadUsers = async () => {
       try {
-        const usersData = await apiService.getAllUsers();
+        const usersData = await mockAPI.getAllUsers();
         setUsers(usersData);
       } catch (error) {
         console.error('Error loading users:', error);
@@ -24,7 +24,7 @@ export const RSVPList: React.FC = () => {
 
   const toggleVerification = async (userId: string) => {
     try {
-      const updatedUser = await apiService.toggleVerification(userId);
+      const updatedUser = await mockAPI.toggleVerification(userId);
       if (updatedUser) {
         setUsers(prev => prev.map(user => 
           user._id === userId ? { ...user, verified: updatedUser.verified } : user

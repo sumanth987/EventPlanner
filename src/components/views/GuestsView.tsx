@@ -1,12 +1,13 @@
 import React, { useState } from 'react';
 import { Users, Plus, Edit3, Trash2, Phone } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
-import { mockGuests } from '../../data/mockData';
+import { mockAPI } from '../../data/mockDatabase';
 import { Guest } from '../../types';
 
 export const GuestsView: React.FC = () => {
   const { user } = useAuth();
-  const [guests, setGuests] = useState(mockGuests.filter(g => g.userId === user?._id));
+  const [guests, setGuests] = useState<Guest[]>([]);
+  const [loading, setLoading] = useState(true);
   const [isEditing, setIsEditing] = useState(false);
   const [editingGuest, setEditingGuest] = useState<Guest | null>(null);
   const [formData, setFormData] = useState({
@@ -14,6 +15,23 @@ export const GuestsView: React.FC = () => {
     relation: '',
     phone: ''
   });
+
+  React.useEffect(() => {
+    const loadGuests = async () => {
+      if (!user) return;
+      
+      try {
+        const guestsData = await mockAPI.getGuestsByUser(user._id);
+        setGuests(guestsData);
+      } catch (error) {
+        console.error('Error loading guests:', error);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    loadGuests();
+  }, [user]);
 
   const handleEdit = (guest: Guest) => {
     setEditingGuest(guest);
@@ -35,31 +53,56 @@ export const GuestsView: React.FC = () => {
     setIsEditing(true);
   };
 
-  const handleSave = (e: React.FormEvent) => {
+  const handleSave = async (e: React.FormEvent) => {
     e.preventDefault();
-    const newGuest: Guest = {
-      _id: editingGuest?._id || Date.now().toString(),
-      userId: user?._id || '',
-      name: formData.name,
-      relation: formData.relation,
-      phone: formData.phone || undefined
-    };
-
-    if (editingGuest) {
-      setGuests(prev => prev.map(guest => 
-        guest._id === editingGuest._id ? newGuest : guest
-      ));
-    } else {
-      setGuests(prev => [...prev, newGuest]);
+    
+    if (!user) return;
+    
+    try {
+      if (editingGuest) {
+        const updatedGuest = await mockAPI.updateGuest(editingGuest._id, {
+          name: formData.name,
+          relation: formData.relation,
+          phone: formData.phone || undefined
+        });
+        if (updatedGuest) {
+          setGuests(prev => prev.map(guest => 
+            guest._id === editingGuest._id ? updatedGuest : guest
+          ));
+        }
+      } else {
+        const newGuest = await mockAPI.createGuest({
+          userId: user._id,
+          name: formData.name,
+          relation: formData.relation,
+          phone: formData.phone || undefined
+        });
+        setGuests(prev => [...prev, newGuest]);
+      }
+    } catch (error) {
+      console.error('Error saving guest:', error);
     }
     
     setIsEditing(false);
     setEditingGuest(null);
   };
 
-  const handleDelete = (id: string) => {
-    setGuests(prev => prev.filter(guest => guest._id !== id));
+  const handleDelete = async (id: string) => {
+    try {
+      await mockAPI.deleteGuest(id);
+      setGuests(prev => prev.filter(guest => guest._id !== id));
+    } catch (error) {
+      console.error('Error deleting guest:', error);
+    }
   };
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center min-h-64">
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-indigo-600"></div>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6">

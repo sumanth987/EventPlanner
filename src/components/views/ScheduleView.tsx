@@ -1,12 +1,14 @@
 import React, { useState } from 'react';
 import { Calendar, Clock, MapPin, Plus, Edit3, Trash2, Shirt } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
-import { mockSchedule, mockEvent } from '../../data/mockData';
+import { mockAPI } from '../../data/mockDatabase';
 import { Schedule } from '../../types';
 
 export const ScheduleView: React.FC = () => {
   const { user } = useAuth();
-  const [scheduleItems, setScheduleItems] = useState(mockSchedule);
+  const [scheduleItems, setScheduleItems] = useState<Schedule[]>([]);
+  const [event, setEvent] = useState<any>(null);
+  const [loading, setLoading] = useState(true);
   const [isEditing, setIsEditing] = useState(false);
   const [editingItem, setEditingItem] = useState<Schedule | null>(null);
   const [formData, setFormData] = useState({
@@ -15,6 +17,25 @@ export const ScheduleView: React.FC = () => {
     venue: '',
     dressCode: ''
   });
+
+  React.useEffect(() => {
+    const loadData = async () => {
+      try {
+        const [scheduleData, eventData] = await Promise.all([
+          mockAPI.getAllSchedules(),
+          mockAPI.getEvent()
+        ]);
+        setScheduleItems(scheduleData);
+        setEvent(eventData);
+      } catch (error) {
+        console.error('Error loading data:', error);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    loadData();
+  }, []);
 
   const handleEdit = (item: Schedule) => {
     setEditingItem(item);
@@ -38,30 +59,46 @@ export const ScheduleView: React.FC = () => {
     setIsEditing(true);
   };
 
-  const handleSave = (e: React.FormEvent) => {
+  const handleSave = async (e: React.FormEvent) => {
     e.preventDefault();
-    const newItem: Schedule = {
-      _id: editingItem?._id || Date.now().toString(),
-      title: formData.title,
-      dateTime: new Date(formData.dateTime),
-      venue: formData.venue,
-      dressCode: formData.dressCode || undefined
-    };
-
-    if (editingItem) {
-      setScheduleItems(prev => prev.map(item => 
-        item._id === editingItem._id ? newItem : item
-      ));
-    } else {
-      setScheduleItems(prev => [...prev, newItem]);
+    
+    try {
+      if (editingItem) {
+        const updatedItem = await mockAPI.updateSchedule(editingItem._id, {
+          title: formData.title,
+          dateTime: new Date(formData.dateTime),
+          venue: formData.venue,
+          dressCode: formData.dressCode || undefined
+        });
+        if (updatedItem) {
+          setScheduleItems(prev => prev.map(item => 
+            item._id === editingItem._id ? updatedItem : item
+          ));
+        }
+      } else {
+        const newItem = await mockAPI.createSchedule({
+          title: formData.title,
+          dateTime: new Date(formData.dateTime),
+          venue: formData.venue,
+          dressCode: formData.dressCode || undefined
+        });
+        setScheduleItems(prev => [...prev, newItem]);
+      }
+    } catch (error) {
+      console.error('Error saving schedule item:', error);
     }
     
     setIsEditing(false);
     setEditingItem(null);
   };
 
-  const handleDelete = (id: string) => {
-    setScheduleItems(prev => prev.filter(item => item._id !== id));
+  const handleDelete = async (id: string) => {
+    try {
+      await mockAPI.deleteSchedule(id);
+      setScheduleItems(prev => prev.filter(item => item._id !== id));
+    } catch (error) {
+      console.error('Error deleting schedule item:', error);
+    }
   };
 
   const formatDateTime = (date: Date) => {
@@ -75,7 +112,15 @@ export const ScheduleView: React.FC = () => {
     });
   };
 
-  if (!mockEvent.showSchedule && !user?.isAdmin) {
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center min-h-64">
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-indigo-600"></div>
+      </div>
+    );
+  }
+
+  if (!event?.showSchedule && !user?.isAdmin) {
     return (
       <div className="min-h-96 flex items-center justify-center">
         <div className="text-center">

@@ -1,6 +1,6 @@
 import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
 import { User, AuthState } from '../types';
-import { apiService } from '../services/api';
+import { mockAPI } from '../data/mockDatabase';
 
 export type ViewType = 'home' | 'rsvp' | 'schedule' | 'events' | 'location' | 'guests' | 'profile';
 
@@ -9,7 +9,7 @@ interface AuthContextType extends AuthState {
   verifyOTP: (otp: string) => Promise<{ success: boolean; message: string }>;
   logout: () => void;
   updateUser: (updates: Partial<User>) => void;
-  pendingUser: User | null;
+  pendingUser: { email?: string; phone?: string } | null;
   currentView: ViewType;
   setCurrentView: (view: ViewType) => void;
   showOTP: boolean;
@@ -28,18 +28,16 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     user: null,
     loading: true,
   });
-  const [pendingUserId, setPendingUserId] = useState<string | null>(null);
+  const [pendingUser, setPendingUser] = useState<{ email?: string; phone?: string } | null>(null);
   const [currentView, setCurrentView] = useState<ViewType>('home');
   const [showOTP, setShowOTP] = useState(false);
 
   useEffect(() => {
-    const token = localStorage.getItem('authToken');
     const storedUser = localStorage.getItem('currentUser');
     
-    if (token && storedUser) {
+    if (storedUser) {
       try {
         const user = JSON.parse(storedUser);
-        apiService.setToken(token);
         setState({
           isAuthenticated: true,
           user,
@@ -48,7 +46,6 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       } catch (error) {
         console.error('Error parsing stored user:', error);
         localStorage.removeItem('currentUser');
-        localStorage.removeItem('authToken');
         setState(prev => ({ ...prev, loading: false }));
       }
     } else {
@@ -60,51 +57,68 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     setState(prev => ({ ...prev, loading: true }));
     
     try {
-      const response = await apiService.login(identifier);
-      setPendingUserId(response.userId);
+      const user = await mockAPI.findByEmailOrPhone(identifier);
+      if (!user) {
+        setState(prev => ({ ...prev, loading: false }));
+        return { success: false, message: 'User not found. Please check your email or phone number.' };
+      }
+      
+      setPendingUser({ email: user.email, phone: user.phone });
       setState(prev => ({ ...prev, loading: false }));
       setShowOTP(true);
-      return { success: true, message: response.message };
+      return { success: true, message: 'OTP sent successfully. Use 123456 for demo.' };
     } catch (error) {
       setState(prev => ({ ...prev, loading: false }));
-      return { success: false, message: error instanceof Error ? error.message : 'Connection error. Please try again.' };
+      return { success: false, message: 'Connection error. Please try again.' };
     }
   };
 
   const verifyOTP = async (otp: string): Promise<{ success: boolean; message: string }> => {
     setState(prev => ({ ...prev, loading: true }));
     
-    if (!pendingUserId) {
+    if (!pendingUser) {
       setState(prev => ({ ...prev, loading: false }));
       return { success: false, message: 'Session expired. Please try again.' };
     }
 
+    // For demo, accept OTP 123456
+    if (otp !== '123456') {
+      setState(prev => ({ ...prev, loading: false }));
+      return { success: false, message: 'Invalid OTP. Please use 123456 for demo.' };
+    }
+
     try {
-      const response = await apiService.verifyOTP(pendingUserId, otp);
-      localStorage.setItem('currentUser', JSON.stringify(response.user));
+      const identifier = pendingUser.email || pendingUser.phone || '';
+      const user = await mockAPI.findByEmailOrPhone(identifier);
+      
+      if (!user) {
+        setState(prev => ({ ...prev, loading: false }));
+        return { success: false, message: 'User not found.' };
+      }
+      
+      localStorage.setItem('currentUser', JSON.stringify(user));
       setState({
         isAuthenticated: true,
-        user: response.user,
+        user: user,
         loading: false,
       });
-      setPendingUserId(null);
+      setPendingUser(null);
       setShowOTP(false);
-      return { success: true, message: response.message };
+      return { success: true, message: 'Login successful!' };
     } catch (error) {
       setState(prev => ({ ...prev, loading: false }));
-      return { success: false, message: error instanceof Error ? error.message : 'Invalid OTP. Please try again.' };
+      return { success: false, message: 'Login failed. Please try again.' };
     }
   };
 
   const logout = () => {
     localStorage.removeItem('currentUser');
-    apiService.clearToken();
     setState({
       isAuthenticated: false,
       user: null,
       loading: false,
     });
-    setPendingUserId(null);
+    setPendingUser(null);
     setCurrentView('home');
     setShowOTP(false);
   };
@@ -112,7 +126,9 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   const updateUser = async (updates: Partial<User>) => {
     if (state.user) {
       try {
-        const updatedUser = await apiService.updateProfile(updates);
+        const updatedUser = await mockAPI.updateUser(state.user._id, updates);
+        if (!updatedUser) return;
+        
         setState(prev => ({ ...prev, user: updatedUser }));
         localStorage.setItem('currentUser', JSON.stringify(updatedUser));
       } catch (error) {
@@ -128,7 +144,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       verifyOTP,
       logout,
       updateUser,
-      pendingUser: null, // Keep for compatibility
+      pendingUser,
       currentView,
       setCurrentView,
       showOTP,

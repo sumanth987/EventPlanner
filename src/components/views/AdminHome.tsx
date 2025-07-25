@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Users, Calendar, MapPin, Settings, CheckCircle, XCircle, Clock, UserCheck } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
-import { apiService } from '../../services/api';
+import { mockAPI } from '../../data/mockDatabase';
 import { User, Event } from '../../types';
 
 export const AdminHome: React.FC = () => {
@@ -13,8 +13,8 @@ export const AdminHome: React.FC = () => {
   useEffect(() => {
     const fetchData = async () => {
       try {
-        const usersData = await apiService.getAllUsers();
-        const eventData = await apiService.getEvent();
+        const usersData = await mockAPI.getAllUsers();
+        const eventData = await mockAPI.getEvent();
         setUsers(usersData);
         setEvent(eventData);
       } catch (error) {
@@ -29,7 +29,7 @@ export const AdminHome: React.FC = () => {
 
   const toggleVerification = async (userId: string) => {
     try {
-      const updatedUser = await apiService.toggleVerification(userId);
+      const updatedUser = await mockAPI.toggleVerification(userId);
       if (updatedUser) {
         setUsers(prev => prev.map(u => u._id === userId ? updatedUser : u));
       }
@@ -40,7 +40,7 @@ export const AdminHome: React.FC = () => {
 
   const updateEventContent = async (updates: any) => {
     try {
-      const updatedEvent = await apiService.updateEvent(updates);
+      const updatedEvent = await mockAPI.updateEvent(updates);
       if (updatedEvent) {
         setEvent(updatedEvent);
       }
